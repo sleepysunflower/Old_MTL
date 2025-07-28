@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Old Montreal 3D Map</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Garamond', serif;
+      background-color: #f8f4e3;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      z-index: 1;
+    }
+    #sidebar {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      width: 250px;
+      max-height: 40%;
+      overflow-y: auto;
+      background-color: rgba(255, 248, 220, 0.95);
+      border: 2px solid #7a6b53;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 15px;
+      z-index: 5;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    }
+    #sidebar h3 {
+      margin: 0 0 10px;
+      font-weight: bold;
+      color: #4b3a24;
+    }
+    #landmark-list div {
+      cursor: pointer;
+      padding: 4px 0;
+      color: #3c2e1f;
+    }
+    #landmark-list div:hover {
+      text-decoration: underline;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(255, 248, 220, 0.95);
+      border: 2px solid #7a6b53;
+      border-radius: 6px;
+      padding: 10px;
+      z-index: 10;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+    }
+    #controls button,
+    #controls input[type=range] {
+      display: block;
+      margin: 6px 0;
+      width: 100%;
+    }
+    #controls input[type=range] {
+      accent-color: #7a6b53;
+    }
+    #controls label {
+      font-size: 14px;
+      color: #3e2d1b;
+    }
+    #toggleView {
+      background-color: #a69279;
+      color: #fffaf0;
+      font-family: 'Garamond', serif;
+      font-size: 14px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #toggleSidebar {
+      position: absolute;
+      bottom: 10px;
+      left: 270px;
+      z-index: 6;
+      background-color: rgba(122, 107, 83, 0.8);
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .mapboxgl-popup-content {
+      background-color: #fff8dc;
+      border: 1px solid #a98d6d;
+      border-radius: 6px;
+      font-family: 'Garamond', serif;
+      color: #4b3a24;
+      padding: 10px;
+      font-size: 15px;
+    }
+    .mapboxgl-popup-close-button {
+      color: #4b3a24;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="controls">
+    <button id="toggleView">Switch to 2D</button>
+    <button id="locate" style="display: none;">Locate Me</button>
+
+    <label>Basemap Opacity
+      <input type="range" id="basemap-opacity" min="0" max="1" step="0.05" value="0.4" />
+    </label>
+    <label>3D Building Opacity
+      <input type="range" id="building-opacity" min="0" max="1" step="0.05" value="0.4" />
+    </label>
+  </div>
+
+  <div id="sidebar">
+    <h3>Landmarks</h3>
+    <div id="landmark-list"></div>
+  </div>
+  <button id="toggleSidebar">Hide</button>
+
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiY3J1Y2lmaWNhdG9yIiwiYSI6ImNsZmc5YXJ1MjFhdjgzcm82c253dXI4ZmEifQ.eGLJ_O2s4Hfz7vHTP8qYEg';
+let is3D = true;
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/satellite-streets-v12', // Primary base with 3D
+  center: [-73.554, 45.508],
+  zoom: 16,
+  pitch: 60,
+  bearing: -20,
+  antialias: true
+});
+
+map.addControl(new mapboxgl.NavigationControl());
+map.addControl(new mapboxgl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }));
+
+document.getElementById('locate').addEventListener('click', () => {
+  map.flyTo({ center: map.getCenter(), zoom: 16, speed: 0.8 });
+});
+
+map.on('load', () => {
+  // Load historic raster style as image layer
+  map.addSource('historic-overlay', {
+    type: 'raster',
+    tiles: [
+      `https://api.mapbox.com/styles/v1/crucificator/cmdkps8zi004x01s23f4vhcl4/tiles/256/{z}/{x}/{y}@2x?access_token=${mapboxgl.accessToken}`
+    ],
+    tileSize: 256
+  });
+
+  map.addLayer({
+    id: 'historic-overlay-layer',
+    type: 'raster',
+    source: 'historic-overlay',
+    paint: { 'raster-opacity': 0.4 }
+  });
+
+  // Continue loading 3D buildings, highlights, sidebar etc. (unchanged)...
+
+
+    document.getElementById('toggleView').addEventListener('click', () => {
+      if (is3D) {
+        map.setPitch(0);
+        map.setBearing(0);
+        document.getElementById('toggleView').innerText = 'Switch to 3D';
+      } else {
+        map.setPitch(60);
+        map.setBearing(-20);
+        document.getElementById('toggleView').innerText = 'Switch to 2D';
+      }
+      is3D = !is3D;
+    });
+
+    document.getElementById('toggleSidebar').addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar.style.display === 'none') {
+        sidebar.style.display = 'block';
+        document.getElementById('toggleSidebar').innerText = 'Hide';
+      } else {
+        sidebar.style.display = 'none';
+        document.getElementById('toggleSidebar').innerText = 'Show';
+      }
+    });
+
+
+      map.addLayer({
+        id: '3d-buildings',
+        source: 'composite',
+        'source-layer': 'building',
+        filter: ['==', 'extrude', 'true'],
+        type: 'fill-extrusion',
+        minzoom: 15,
+        paint: {
+          'fill-extrusion-color': '#888888',
+          'fill-extrusion-height': ['get', 'height'],
+          'fill-extrusion-base': ['get', 'min_height'],
+          'fill-extrusion-opacity': 0.4
+        }
+      });
+
+      fetch('buildings.geojson')
+        .then(response => response.json())
+        .then(geojsonData => {
+          map.addSource('historic-buildings', { type: 'geojson', data: geojsonData });
+
+          map.addLayer({
+            id: 'highlighted-fill',
+            type: 'fill',
+            source: 'historic-buildings',
+            paint: { 'fill-color': '#ffcc00', 'fill-opacity': 0.5 }
+          }, '3d-buildings');
+
+          map.addLayer({
+            id: 'highlighted-outline',
+            type: 'line',
+            source: 'historic-buildings',
+            paint: { 'line-color': '#ff9900', 'line-width': 2 }
+          }, '3d-buildings');
+
+          const sidebar = document.getElementById('landmark-list');
+          geojsonData.features.forEach((feature) => {
+            if (feature.properties && feature.properties.name) {
+              const item = document.createElement('div');
+              item.className = 'landmark-item';
+              item.textContent = feature.properties.name;
+              item.addEventListener('click', () => {
+                const coords = feature.geometry.type === 'Point'
+                  ? feature.geometry.coordinates
+                  : feature.geometry.coordinates[0][0];
+                map.flyTo({ center: coords, zoom: 18 });
+                const html = `<strong>${feature.properties.name}</strong><br>${feature.properties.intro}<br><em>Year built:</em> ${feature.properties.year}<br><a href="${feature.properties.website}" target="_blank">Visit Website</a>`;
+                new mapboxgl.Popup().setLngLat(coords).setHTML(html).addTo(map);
+              });
+              sidebar.appendChild(item);
+            }
+          });
+
+          map.on('click', 'highlighted-fill', (e) => {
+            const props = e.features[0].properties;
+            const html = `<strong>${props.name}</strong><br>${props.intro}<br><em>Year built:</em> ${props.year}<br><a href="${props.website}" target="_blank">Visit Website</a>`;
+            new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+          });
+
+          map.on('mouseenter', 'highlighted-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+          map.on('mouseleave', 'highlighted-fill', () => { map.getCanvas().style.cursor = ''; });
+        });
+    });
+
+    document.getElementById('basemap-opacity').addEventListener('input', function () {
+      const opacity = parseFloat(this.value);
+      if (map.getLayer('historic-overlay-layer')) {
+        map.setPaintProperty('historic-overlay-layer', 'raster-opacity', opacity);
+      }
+    });
+
+
+    document.getElementById('building-opacity').addEventListener('input', function () {
+      const opacity = parseFloat(this.value);
+      if (map.getLayer('3d-buildings')) {
+        map.setPaintProperty('3d-buildings', 'fill-extrusion-opacity', opacity);
+      }
+    });
+  </script>
+</body>
+</html>
