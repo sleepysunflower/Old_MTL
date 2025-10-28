@@ -155,7 +155,6 @@ document.getElementById('locate').addEventListener('click', () => {
 });
 
 map.on('load', () => {
-  // Load historic raster style as image layer
   map.addSource('historic-overlay', {
     type: 'raster',
     tiles: [
@@ -171,7 +170,6 @@ map.on('load', () => {
     paint: { 'raster-opacity': 0.4 }
   });
 
-  // Continue loading 3D buildings, highlights, sidebar etc. (unchanged)...
 
 
     document.getElementById('toggleView').addEventListener('click', () => {
